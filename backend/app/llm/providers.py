@@ -139,6 +139,12 @@ class _JSONHttpLLM(LLMService):
                     raise LLMError(f"{self.provider} rejected the API key (check LLM_API_KEY).") from exc
                 if code == 429:
                     raise LLMError(f"{self.provider} rate limit / free-tier quota reached — retry shortly.") from exc
+                if code == 404:
+                    hint = ""
+                    if hasattr(self, "available_models"):
+                        names = self.available_models()
+                        hint = f" Models available to this API key: {', '.join(names[:8])}." if names else ""
+                    raise LLMError(f"Model '{self.model}' is not available to this API key (404).{hint}") from exc
                 raise LLMError(f"{self.provider} API error ({code}).") from exc
             except httpx.HTTPError as exc:
                 raise LLMError(f"Could not reach the {self.provider} API.") from exc
@@ -164,6 +170,17 @@ class GeminiLLM(_JSONHttpLLM):
         self.base = (settings.llm_base_url or self.BASE).rstrip("/")
         self.timeout = settings.llm_timeout_s
         self._schema_supported = True
+
+    def available_models(self) -> list[str]:
+        """Model names this API key may call with generateContent (best effort, for error messages)."""
+        try:
+            with httpx.Client(timeout=15) as client:
+                resp = client.get(f"{self.base}/models", headers={"x-goog-api-key": self.api_key})
+                resp.raise_for_status()
+                return [m["name"].removeprefix("models/") for m in resp.json().get("models", [])
+                        if "generateContent" in m.get("supportedGenerationMethods", [])]
+        except (httpx.HTTPError, KeyError, ValueError):
+            return []
 
     def _call(self, system: str, user: str, schema: type[BaseModel]) -> str:
         config: dict = {"temperature": 0.1, "responseMimeType": "application/json"}

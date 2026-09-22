@@ -148,3 +148,29 @@ def test_anthropic_ignores_machine_wide_base_url(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://localhost:9999/proxy")
     llm = AnthropicLLM(settings(llm_provider="anthropic", llm_api_key="sk-test", llm_base_url=""))
     assert str(llm.client.base_url).startswith("https://api.anthropic.com")
+
+
+def test_gemini_unknown_model_lists_available_models(monkeypatch):
+    def handler(req):
+        if req.url.path.endswith("/models"):
+            return httpx.Response(200, json={"models": [
+                {"name": "models/gemini-2.0-flash", "supportedGenerationMethods": ["generateContent"]},
+                {"name": "models/text-embedding-004", "supportedGenerationMethods": ["embedContent"]}]})
+        return httpx.Response(404, json={"error": {"message": "models/gemini-9-ultra is not found"}})
+
+    mock_httpx(monkeypatch, handler)
+    with pytest.raises(LLMError) as e:
+        GeminiLLM(settings(llm_api_key="k", llm_model="gemini-9-ultra")).generate("s", "u", LLMCrossExpertAnswer)
+    assert "not available to this API key" in str(e.value) and "gemini-2.0-flash" in str(e.value)
+    assert "text-embedding-004" not in str(e.value)
+
+
+def test_insights_llm_failure_is_a_notice_not_a_dropped_citation(app_state, with_fake_llm):
+    def boom(user, schema):
+        raise LLMError("gemini API error (404).")
+
+    with_fake_llm(boom)
+    r = app_state.research.insights()
+    assert r.meta.dropped_citations == []
+    assert len(r.meta.notices) >= 1 and "LLM unavailable" in r.meta.notices[0]
+    assert r.meta.cached is False

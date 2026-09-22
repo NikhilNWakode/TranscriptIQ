@@ -328,8 +328,9 @@ class ResearchService:
                                     meta=self._meta(experts_considered=len(experts)))
 
         dropped: list[str] = []
+        notices: list[str] = []
         findings: list[Finding] = []
-        cached_all = True
+        cached_all, calls = True, 0
         for q, evs in per_question:
             if not evs:
                 continue
@@ -337,9 +338,10 @@ class ResearchService:
             try:
                 raw, cached = self._call("findings", findings_prompt(q.text, evs, experts), LLMFindings)
             except LLMError as exc:
-                dropped.append(f"{q.id}: LLM unavailable ({exc})")
+                notices.append(f"{q.id}: LLM unavailable ({exc})")
                 continue
             cached_all &= cached
+            calls += 1
             for i, f in enumerate(raw.findings):
                 fnd = self._finding(f"{q.id}_f{i + 1}", f.title, f.summary, f.classification, f.evidence,
                                     allowed, expert_map, q.id, dropped)
@@ -357,13 +359,14 @@ class ResearchService:
             try:
                 raw_t, cached = self._call("themes", themes_prompt(block, experts), LLMFindings)
                 cached_all &= cached
+                calls += 1
                 for i, t in enumerate(raw_t.findings):
                     fnd = self._finding(f"theme_{i + 1}", t.title, t.summary, t.classification, t.evidence,
                                         allowed_all, expert_map, None, dropped)
                     if fnd:
                         themes.append(fnd)
             except LLMError as exc:
-                dropped.append(f"themes: LLM unavailable ({exc})")
+                notices.append(f"themes: LLM unavailable ({exc})")
 
         return InsightsResponse(
             **base,
@@ -371,7 +374,8 @@ class ResearchService:
             differences=[f for f in findings if f.classification == "difference_in_emphasis"],
             disagreements=[f for f in findings if f.classification == "disagreement"],
             by_question=findings,
-            meta=self._meta(cached=cached_all, experts_considered=len(experts), dropped_citations=dropped),
+            meta=self._meta(cached=cached_all and calls > 0, experts_considered=len(experts),
+                            dropped_citations=dropped, notices=notices),
         )
 
 
