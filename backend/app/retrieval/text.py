@@ -79,6 +79,11 @@ def normalise_for_match(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
+# Titles whose full stop does not end a sentence ("Dr. Jean Martin expects ..."). Each lookbehind sits just
+# after the full stop, so it has to include that stop.
+_TITLES = r"(?<!\bDr\.)(?<!\bMr\.)(?<!\bMrs\.)(?<!\bMs\.)(?<!\bMx\.)(?<!\bProf\.)(?<!\bSt\.)"
+_SENTENCE_SPLIT = re.compile(rf"(?<=[.!?]){_TITLES}\s+(?=[A-Z0-9\"“])")
+
+
 def split_sentences(text: str) -> list[str]:
-    parts = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"“])", text.strip())
-    return [p.strip() for p in parts if p.strip()]
+    return [p.strip() for p in _SENTENCE_SPLIT.split(text.strip()) if p.strip()]

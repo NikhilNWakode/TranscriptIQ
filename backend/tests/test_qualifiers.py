@@ -58,3 +58,45 @@ def test_balanced_emphasis_statement_passes():
 
 def test_forecast_horizon_numbers_do_not_trigger():
     assert check_qualifiers("Over the next 3–5 years she expects continued growth.", [SOME_AREAS]) == []
+
+
+def test_titles_do_not_split_sentences():
+    from app.retrieval.text import split_sentences
+
+    assert split_sentences("Dr. Jean Martin expects adoption to increase.") == [
+        "Dr. Jean Martin expects adoption to increase."]
+    assert len(split_sentences("Growth is slow. Mrs. Keller disagrees. It ends here.")) == 3
+
+
+def test_claim_is_not_checked_against_another_experts_evidence():
+    france = ev("fr_05_07", "I would expect maybe 15 to 20 percent more procedures annually in some of the "
+                            "stronger centres, but smaller hospitals will remain slower.")
+    france.expert_name, france.market = "Dr. Jean Martin", "France"
+    uk = ev("uk_04_06", "I could see procedure growth above 15 percent annually in some areas.")
+    uk.expert_name, uk.market = "Dr. Emily Carter", "United Kingdom"
+    claim = ("Dr. Jean Martin (France) expects 15-20 percent more procedures annually in some of the stronger "
+             "centres, while smaller hospitals lag.")
+    assert check_qualifiers(claim, [france, uk]) == []           # UK's "in some areas"/"could" must not apply
+    assert check_qualifiers(claim, [france]) == []               # and the France-only result is unchanged
+
+
+def test_unattributed_claim_still_checks_all_evidence():
+    france = ev("fr_05_07", "I would expect 15 to 20 percent more procedures annually in some of the stronger centres.")
+    assert check_qualifiers("Growth of 15-20% is expected.", [france])
+
+
+def test_forecast_verbs_count_as_hedges():
+    uk = ev("uk_04_06", "I could see procedure growth above 15 percent annually in some areas.")
+    uk.expert_name, uk.market = "Dr. Emily Carter", "United Kingdom"
+    for verb in ("foresees", "forecasts", "projects", "predicts"):
+        claim = f"Dr. Emily Carter {verb} growth above 15 percent annually in some areas."
+        assert check_qualifiers(claim, [uk]) == [], verb
+
+
+def test_dropping_some_from_stronger_centres_is_still_reported():
+    france = ev("fr_05_07", "I would expect maybe 15 to 20 percent more procedures annually in some of the "
+                            "stronger centres.")
+    france.expert_name, france.market = "Dr. Jean Martin", "France"
+    claim = "Dr. Jean Martin expects 15-20 percent more procedures annually in stronger centres."
+    warnings = check_qualifiers(claim, [france])
+    assert any("stronger centres" in w.qualifier.lower() for w in warnings), warnings

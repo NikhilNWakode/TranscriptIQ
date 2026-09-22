@@ -61,7 +61,8 @@ RULES: list[QualifierRule] = [
     QualifierRule("scope", re.compile(r"\b(?:larger|bigger|major|big|university|academic|teaching) (?:\w+ )?(?:hospitals|centres|centers|institutions|cities)\b", re.I),
                   _const(r"\b(?:larger|bigger|major|big|university|academic|teaching|leading)\b")),
     QualifierRule("hedge", re.compile(r"\b(?:could|may|might|potentially|possibly|perhaps|up to)\b", re.I),
-                  _const(r"\b(?:could|may|might|potential|possibl|perhaps|up to|expect|estimat|anticipat|believ|suggest|think|see|says?|sees?)\w*")),
+                  _const(r"\b(?:could|may|might|potential|possibl|perhaps|up to|expect|estimat|anticipat|believ|"
+                         r"suggest|think|see|says?|sees?|foresees?|forecasts?|projects?|predicts?)\w*")),
 ]
 
 UNIVERSAL_RE = re.compile(
@@ -92,17 +93,37 @@ def _is_quantitative_claim(sentence: str) -> bool:
     return bool(re.search(r"\d\s*(?:%|percent|per cent|months?|years?|x\b)|\d+\s*(?:-|–|to)\s*\d+", sentence, re.I))
 
 
+def _mentions(claim: str, name: str) -> bool:
+    """True when the claim names this expert or market (a surname or the market name is enough)."""
+    if not name or name == "Unknown":
+        return False
+    skip = {"the", "and", "dr", "prof", "former", "hospital", "director", "consultant", "head"}
+    tokens = [t for t in re.split(r"[\s.,]+", fold(name)) if len(t) > 2 and t not in skip]
+    return any(re.search(rf"\b{re.escape(t)}\b", fold(claim)) for t in tokens)
+
+
 def check_qualifiers(answer: str, evidence: list[Evidence]) -> list[QualifierWarning]:
     warnings: list[QualifierWarning] = []
     seen: set[tuple[str, str]] = set()
     claims = split_sentences(answer) or [answer]
     ev_sentences = [(ev, s) for ev in evidence for s in split_sentences(ev.text)]
 
+    def evidence_for(claim: str) -> list[tuple[Evidence, str]]:
+        """A claim that names an expert/market is judged only against that expert's evidence.
+
+        A cross-expert answer states each expert's numbers in its own clause; without this, France's "15-20%"
+        matches the UK's "15 percent" evidence and is reported as dropping the UK's qualifiers. Claims that name
+        nobody keep the original behaviour of checking against all supplied evidence.
+        """
+        named = {ev.transcript_id for ev in evidence
+                 if _mentions(claim, ev.expert_name) or _mentions(claim, ev.market)}
+        return [(ev, s) for ev, s in ev_sentences if ev.transcript_id in named] if named else ev_sentences
+
     for claim in claims:
         # 1) quantitative claims must keep the qualifiers of the evidence sentence they come from
         if _is_quantitative_claim(claim):
             nums = _numbers(claim)
-            for ev, sent in ev_sentences:
+            for ev, sent in evidence_for(claim):
                 shared = nums & _numbers(sent)
                 if not shared:
                     continue
