@@ -1,0 +1,39 @@
+{
+  "project_id": "default",
+  "title": "Interview Guide – European Robotic Surgery Market",
+  "objective": "Understand hospital adoption, barriers, economics, and purchasing behaviour for robotic surgery systems in Europe.",
+  "questions": [
+    {
+      "id": "q1",
+      "text": "How would you describe current adoption of robotic surgery in your market?"
+    },
+    {
+      "id": "q2",
+      "text": "What are the main barriers to adoption?"
+    },
+    {
+      "id": "q3",
+      "text": "How important are hospital budgets and ROI in purchasing decisions?"
+    },
+    {
+      "id": "q4",
+      "text": "How important are surgeon training and clinical outcomes?"
+    },
+    {
+      "id": "q5",
+      "text": "What adoption trend do you expect over the next 3–5 years?"
+    },
+    {
+      "id": "q6",
+      "text": "What is the typical hospital decision-making timeline for purchasing a new robotic system?"
+    }
+  ],
+  "example_questions": [
+    "How do experts view the role of economics in robotic surgery purchasing?",
+    "Do the experts disagree about adoption growth?",
+    "Which expert discusses training capacity as a barrier?",
+    "What are the typical purchasing timelines?",
+    "Why is training important?",
+    "How does the UK differ from France and Germany?"
+  ]
+}

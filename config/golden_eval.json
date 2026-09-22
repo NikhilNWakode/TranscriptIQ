@@ -1,0 +1,256 @@
+{
+  "description": "Golden regression set for the Hasamex robotic-surgery case. Checks are applied to backend-resolved sources (deterministic in every mode) and, in LLM mode, to the generated answer text. Market names are matched through aliases so the set does not depend on exact header spelling.",
+  "market_aliases": {
+    "France": [
+      "france",
+      "french"
+    ],
+    "Germany": [
+      "germany",
+      "german"
+    ],
+    "UK": [
+      "uk",
+      "united kingdom",
+      "england",
+      "britain",
+      "great britain",
+      "nhs"
+    ]
+  },
+  "cases": [
+    {
+      "id": "economics",
+      "question": "How do experts view the role of economics in robotic surgery purchasing?",
+      "expected": "France and Germany emphasise the economic case strongly; the UK says economics and clinical strategy are balanced.",
+      "checks": {
+        "source_markets": [
+          "France",
+          "Germany",
+          "UK"
+        ],
+        "source_text_any": [
+          {
+            "market": "UK",
+            "any": [
+              "balanced",
+              "balance"
+            ]
+          }
+        ],
+        "answer_forbidden": [
+          "disagree about whether economics matters",
+          "finance alone"
+        ]
+      }
+    },
+    {
+      "id": "growth_disagreement",
+      "question": "Do the experts disagree about adoption growth?",
+      "expected": "All expect growth. Differences concern magnitude/scope rather than direction.",
+      "checks": {
+        "source_markets": [
+          "France",
+          "Germany",
+          "UK"
+        ],
+        "source_text_any": [
+          {
+            "market": "France",
+            "any": [
+              "stronger centres",
+              "stronger centers",
+              "some"
+            ]
+          },
+          {
+            "market": "Germany",
+            "any": [
+              "single",
+              "double",
+              "rather than",
+              "whole market"
+            ]
+          },
+          {
+            "market": "UK",
+            "any": [
+              "some areas",
+              "some"
+            ]
+          }
+        ],
+        "answer_forbidden": [
+          "experts fundamentally disagree",
+          "directly contradict"
+        ]
+      }
+    },
+    {
+      "id": "training_capacity",
+      "question": "Which expert discusses training capacity as a barrier?",
+      "expected": "Dr. Emily Carter — UK — 01:05.",
+      "checks": {
+        "source_timestamps": [
+          {
+            "market": "UK",
+            "timestamp": "01:05"
+          }
+        ],
+        "source_text_any": [
+          {
+            "market": "UK",
+            "any": [
+              "train"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "timelines",
+      "question": "What are the typical purchasing timelines?",
+      "expected": "France 6–12 months; Germany 9–18 months; UK 6–9 months if funding is already available, potentially much longer if waiting for a capital cycle.",
+      "checks": {
+        "source_markets": [
+          "France",
+          "Germany",
+          "UK"
+        ],
+        "source_text_all": [
+          {
+            "market": "France",
+            "all": [
+              [
+                "6",
+                "six"
+              ],
+              [
+                "12",
+                "twelve"
+              ]
+            ]
+          },
+          {
+            "market": "Germany",
+            "all": [
+              [
+                "9",
+                "nine"
+              ],
+              [
+                "18",
+                "eighteen"
+              ]
+            ]
+          },
+          {
+            "market": "UK",
+            "all": [
+              [
+                "6",
+                "six"
+              ],
+              [
+                "9",
+                "nine"
+              ],
+              [
+                "funding"
+              ]
+            ]
+          }
+        ],
+        "answer_required_if_llm": [
+          "funding"
+        ],
+        "source_timestamps": [
+          {
+            "market": "France",
+            "timestamp": "06:08"
+          },
+          {
+            "market": "Germany",
+            "timestamp": "06:05"
+          },
+          {
+            "market": "UK",
+            "timestamp": "05:04"
+          }
+        ]
+      }
+    },
+    {
+      "id": "training_importance",
+      "question": "Why is training important?",
+      "expected": "Training increases the number of capable users, improves utilisation and supports programme sustainability / economic viability.",
+      "checks": {
+        "min_experts": 2,
+        "source_text_any": [
+          {
+            "market": "*",
+            "any": [
+              "train"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "no_evidence",
+      "question": "What do the experts say about cryptocurrency regulation in Japan?",
+      "expected": "No-evidence response.",
+      "checks": {
+        "insufficient_evidence": true
+      }
+    },
+    {
+      "id": "no_evidence_price",
+      "question": "What is the average price of a robotic surgery system in Europe?",
+      "expected": "No-evidence response (interviewer attack test).",
+      "checks": {
+        "insufficient_evidence": true
+      }
+    },
+    {
+      "id": "no_evidence_maintenance_prices",
+      "question": "What did the experts say about robotic surgery maintenance prices?",
+      "expected": "No-evidence response (interviewer attack test).",
+      "checks": {
+        "insufficient_evidence": true
+      }
+    },
+    {
+      "id": "no_evidence_fake_statistic",
+      "question": "Which expert believes robotic surgery saves exactly 25% of hospital costs?",
+      "expected": "No-evidence response (interviewer attack test).",
+      "checks": {
+        "insufficient_evidence": true
+      }
+    },
+    {
+      "id": "no_evidence_penetration",
+      "question": "What percentage of hospitals in France currently use robotic surgery?",
+      "expected": "No-evidence response (interviewer attack test).",
+      "checks": {
+        "insufficient_evidence": true
+      }
+    },
+    {
+      "id": "no_evidence_roi_period",
+      "question": "What is the average ROI period?",
+      "expected": "No-evidence response (interviewer attack test).",
+      "checks": {
+        "insufficient_evidence": true
+      }
+    },
+    {
+      "id": "no_evidence_vendor",
+      "question": "Which company sells the most robotic surgery systems?",
+      "expected": "No-evidence response (interviewer attack test).",
+      "checks": {
+        "insufficient_evidence": true
+      }
+    }
+  ]
+}

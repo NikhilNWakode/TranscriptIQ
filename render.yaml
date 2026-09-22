@@ -1,0 +1,33 @@
+# Render blueprint for the TranscriptIQ backend (Dashboard → New → Blueprint → pick this repo).
+# The frontend deploys separately on Vercel with BACKEND_URL set to this service's URL.
+services:
+  - type: web
+    name: transcriptiq-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      # The repo is checked out at /opt/render/project/src; transcripts ship with it.
+      - key: TRANSCRIPTS_DIR
+        value: /opt/render/project/src/transcripts
+      - key: INTERVIEW_GUIDE_PATH
+        value: /opt/render/project/src/config/interview_guide.json
+      - key: QUERY_EXPANSION_PATH
+        value: /opt/render/project/src/config/query_expansion.json
+      # Ephemeral disk: the index is rebuilt from /transcripts on every boot.
+      - key: DATABASE_PATH
+        value: /tmp/transcriptiq.db
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: LLM_MODEL
+        value: gemini-2.5-flash
+      - key: EMBEDDING_PROVIDER
+        value: gemini
+      # Set in the Render dashboard, never in the repo.
+      - key: LLM_API_KEY
+        sync: false

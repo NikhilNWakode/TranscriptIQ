@@ -1,0 +1,41 @@
+Expert Interview Transcript
+
+Name:
+Dr. Clara Alvarez
+
+Role:
+Head of Surgery
+
+Market:
+Northland
+
+00:15 Interviewer:
+"How would you describe current adoption of robotic surgery in your market?"
+
+00:22 Dr. Alvarez:
+"Adoption is growing, but it is concentrated in the larger university hospitals. Smaller regional hospitals are still mostly waiting."
+
+01:05 Interviewer:
+"What is holding adoption back?"
+
+canvas
+01:12 Dr. Alvarez:
+"The biggest issue is still capital budget approval. Surgeons are enthusiastic, but the equipment committee moves slowly."
+
+02:00 Interviewer:
+"How important is ROI?"
+
+02:08 Dr. Alvarez:
+"Very important. The finance team wants to understand utilisation, procedure volume and maintenance cost before anything is signed."
+
+03:10 Interviewer:
+"What trend do you expect over the next 3–5 years?"
+
+03:18 Dr. Alvarez:
+"I would expect 15 to 20% more procedures each year in some of the stronger centres, not everywhere."
+
+04:02 Interviewer:
+"How long does a purchasing decision take?"
+
+04:09 Dr. Alvarez:
+"Usually 6 to 12 months from the first business case to signature."

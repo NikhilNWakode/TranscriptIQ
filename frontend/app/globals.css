@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+/* shadcn/ui-style design tokens (slate base, indigo accent) */
+:root {
+  --background: oklch(0.985 0.002 247);
+  --foreground: oklch(0.21 0.03 265);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.03 265);
+  --muted: oklch(0.967 0.004 247);
+  --muted-foreground: oklch(0.52 0.03 257);
+  --border: oklch(0.925 0.008 255);
+  --input: oklch(0.9 0.01 255);
+  --primary: oklch(0.47 0.2 272);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.96 0.006 250);
+  --secondary-foreground: oklch(0.25 0.03 265);
+  --accent: oklch(0.95 0.025 272);
+  --accent-foreground: oklch(0.35 0.15 272);
+  --ring: oklch(0.6 0.16 272);
+  --radius: 0.625rem;
+
+  /* semantic: AI synthesis vs source evidence */
+  --ai: oklch(0.97 0.02 290);
+  --ai-border: oklch(0.87 0.06 290);
+  --ai-foreground: oklch(0.42 0.17 290);
+  --source: oklch(0.985 0.012 85);
+  --source-border: oklch(0.86 0.08 80);
+  --source-foreground: oklch(0.45 0.1 65);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-ring: var(--ring);
+  --color-ai: var(--ai);
+  --color-ai-border: var(--ai-border);
+  --color-ai-foreground: var(--ai-foreground);
+  --color-source: var(--source);
+  --color-source-border: var(--source-border);
+  --color-source-foreground: var(--source-foreground);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: "Inter", "Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+  }
+  ::selection {
+    background: oklch(0.87 0.08 272);
+  }
+}
+
+@keyframes flash-evidence {
+  0% { box-shadow: 0 0 0 0 oklch(0.8 0.14 80 / 0.9); }
+  100% { box-shadow: 0 0 0 10px oklch(0.8 0.14 80 / 0); }
+}
+.evidence-flash {
+  animation: flash-evidence 1.2s ease-out 2;
+}

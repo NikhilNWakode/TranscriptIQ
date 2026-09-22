@@ -1,0 +1,15 @@
+{
+  "description": "Optional query-side synonym groups for keyword retrieval (BM25 + local embeddings). If any term of a group appears in a question, the other terms are added to the search query. Evidence text is never modified. Semantic embedding providers (e.g. Gemini) do not need this, but it keeps offline/demo mode robust to paraphrase. Edit freely — no code changes required.",
+  "groups": [
+    ["barrier", "barriers", "obstacle", "obstacles", "holding back", "hold back", "challenge", "challenges", "issue", "problem", "bottleneck", "constraint"],
+    ["roi", "return on investment", "pay for itself", "payback", "economic", "economics", "finance", "financial", "business case", "cost", "costs"],
+    ["budget", "budgets", "capital", "funding", "money", "investment"],
+    ["timeline", "timelines", "how long", "duration", "months", "take", "process", "decision"],
+    ["trend", "outlook", "future", "growth", "grow", "expect", "next years"],
+    ["training", "train", "trained", "learning curve", "skills", "proctor", "proctors", "surgeons"],
+    ["adoption", "uptake", "penetration", "use", "usage", "utilisation", "utilization"],
+    ["outcomes", "clinical", "evidence", "results", "quality"],
+    ["purchasing", "purchase", "buy", "buying", "procurement", "acquisition", "approval", "decision-making"],
+    ["disagree", "disagreement", "differ", "difference", "contradict", "diverge"]
+  ]
+}
