@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from abc import ABC, abstractmethod
 from typing import TypeVar
 
@@ -26,7 +27,7 @@ T = TypeVar("T", bound=BaseModel)
 
 DEFAULT_MODELS = {
     "anthropic": "claude-opus-5",
-    "gemini": "gemini-2.5-flash",
+    "gemini": "gemini-3.6-flash",
     "openai_compatible": "llama-3.3-70b-versatile",
     "mock": "extractive-demo",
 }
@@ -125,12 +126,29 @@ class _JSONHttpLLM(LLMService):
     @abstractmethod
     def _call(self, system: str, user: str, schema: type[BaseModel]) -> str: ...
 
+    # Free tiers return 503 ("high demand") and 429 sporadically; a short backoff usually clears both.
+    TRANSIENT_STATUSES = frozenset({429, 500, 502, 503, 504})
+    TRANSIENT_BACKOFF_S = (1.5, 4.0, 9.0)
+
+    def _call_with_retries(self, system: str, prompt: str, schema: type[BaseModel]) -> str:
+        last: httpx.HTTPStatusError | None = None
+        for delay in (*self.TRANSIENT_BACKOFF_S, None):
+            try:
+                return self._call(system, prompt, schema)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code not in self.TRANSIENT_STATUSES or delay is None:
+                    raise
+                last = exc
+                log.warning("%s returned %s; retrying in %.1fs", self.provider, exc.response.status_code, delay)
+                time.sleep(delay)
+        raise last  # unreachable: the final iteration re-raises
+
     def generate(self, system: str, user: str, schema: type[T]) -> T:
         prompt = user
         last_error = ""
         for attempt in range(2):
             try:
-                raw = self._call(system, prompt, schema)
+                raw = self._call_with_retries(system, prompt, schema)
             except httpx.HTTPStatusError as exc:
                 code = exc.response.status_code
                 body = exc.response.text[:2000].lower()
@@ -138,7 +156,9 @@ class _JSONHttpLLM(LLMService):
                 if code in (401, 403) or "api key not valid" in body or "api_key_invalid" in body:
                     raise LLMError(f"{self.provider} rejected the API key (check LLM_API_KEY).") from exc
                 if code == 429:
-                    raise LLMError(f"{self.provider} rate limit / free-tier quota reached — retry shortly.") from exc
+                    raise LLMError(f"{self.provider} rate limit reached (free-tier quota) — retry shortly.") from exc
+                if code in (500, 502, 503, 504):
+                    raise LLMError(f"{self.provider} is temporarily overloaded ({code}) — retry in a moment.") from exc
                 if code == 404:
                     hint = ""
                     if hasattr(self, "available_models"):
@@ -182,25 +202,32 @@ class GeminiLLM(_JSONHttpLLM):
         except (httpx.HTTPError, KeyError, ValueError):
             return []
 
-    def _call(self, system: str, user: str, schema: type[BaseModel]) -> str:
+    def _body(self, system: str, user: str, schema: type[BaseModel]) -> dict:
+        """Send the schema EITHER as responseJsonSchema OR inline in the prompt — never both.
+
+        Gemini rejects a request that carries the schema in both places with a misleading
+        503 "high demand" error, so the inline copy is only used on the no-schema fallback path.
+        """
         config: dict = {"temperature": 0.1, "responseMimeType": "application/json"}
-        body = {
+        text = user
+        if self._schema_supported:
+            config["responseJsonSchema"] = schema.model_json_schema()
+        else:
+            text = user + _schema_instruction(schema)
+        return {
             "systemInstruction": {"parts": [{"text": system}]},
-            "contents": [{"role": "user", "parts": [{"text": user + _schema_instruction(schema)}]}],
+            "contents": [{"role": "user", "parts": [{"text": text}]}],
             "generationConfig": config,
         }
+
+    def _call(self, system: str, user: str, schema: type[BaseModel]) -> str:
         with httpx.Client(timeout=self.timeout) as client:
             url = f"{self.base}/models/{self.model}:generateContent"
             headers = {"x-goog-api-key": self.api_key}
-            if self._schema_supported:
-                config["responseJsonSchema"] = schema.model_json_schema()
-                resp = client.post(url, headers=headers, json=body)
-                if resp.status_code == 400:  # older models/endpoints without JSON-schema support
-                    self._schema_supported = False
-                    config.pop("responseJsonSchema", None)
-                    resp = client.post(url, headers=headers, json=body)
-            else:
-                resp = client.post(url, headers=headers, json=body)
+            resp = client.post(url, headers=headers, json=self._body(system, user, schema))
+            if resp.status_code == 400 and self._schema_supported:  # model/endpoint without JSON-schema support
+                self._schema_supported = False
+                resp = client.post(url, headers=headers, json=self._body(system, user, schema))
             resp.raise_for_status()
             data = resp.json()
         candidates = data.get("candidates") or []

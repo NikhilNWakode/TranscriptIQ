@@ -174,3 +174,42 @@ def test_insights_llm_failure_is_a_notice_not_a_dropped_citation(app_state, with
     assert r.meta.dropped_citations == []
     assert len(r.meta.notices) >= 1 and "LLM unavailable" in r.meta.notices[0]
     assert r.meta.cached is False
+
+
+def test_transient_overload_is_retried_then_succeeds(monkeypatch):
+    monkeypatch.setattr(providers.time, "sleep", lambda s: None)
+    calls = []
+
+    def handler(req):
+        calls.append(1)
+        if len(calls) < 3:
+            return httpx.Response(503, json={"error": {"message": "high demand"}})
+        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": json.dumps(VALID)}]}}]})
+
+    mock_httpx(monkeypatch, handler)
+    assert GeminiLLM(settings(llm_api_key="k")).generate("s", "u", LLMCrossExpertAnswer).answer == "ok"
+    assert len(calls) == 3
+
+
+def test_persistent_overload_reports_overload_not_quota(monkeypatch):
+    monkeypatch.setattr(providers.time, "sleep", lambda s: None)
+    mock_httpx(monkeypatch, lambda req: httpx.Response(503, json={}))
+    with pytest.raises(LLMError, match="temporarily overloaded"):
+        GeminiLLM(settings(llm_api_key="k")).generate("s", "u", LLMCrossExpertAnswer)
+
+
+def test_gemini_never_sends_the_schema_twice(monkeypatch):
+    """Schema in both responseJsonSchema and the prompt text makes Gemini answer 503."""
+    seen = []
+
+    def handler(req):
+        body = json.loads(req.content)
+        seen.append(body)
+        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": json.dumps(VALID)}]}}]})
+
+    mock_httpx(monkeypatch, handler)
+    GeminiLLM(settings(llm_api_key="k")).generate("s", "the question", LLMCrossExpertAnswer)
+    body = seen[0]
+    prompt = body["contents"][0]["parts"][0]["text"]
+    assert "responseJsonSchema" in body["generationConfig"]
+    assert "JSON Schema" not in prompt and prompt == "the question"

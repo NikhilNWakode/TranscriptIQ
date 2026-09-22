@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ..models.schemas import Evidence, ExpertRef
 
-PROMPT_VERSION = "v3"
+PROMPT_VERSION = "v4"
 
 GROUNDING_RULES = """You are a senior market-research analyst working ONLY from expert interview transcripts.
 
@@ -24,8 +24,12 @@ Grounding rules (non-negotiable):
    - difference_in_emphasis: experts agree on direction but weigh factors differently, or differ in magnitude/scope.
    - disagreement: experts make genuinely contradictory claims about the same thing. Use this ONLY when the
      evidence shows incompatible positions. Different numbers for different markets are NOT a disagreement.
-7. If the evidence does not answer the question, say so: set insufficient_evidence=true (where available),
-   leave evidence empty, and do not speculate.
+7. Topically related evidence is NOT an answer. Before answering, check that the evidence actually states the
+   specific thing asked for — the number, price, percentage, vendor, brand, date or fact. If the question asks for
+   something the transcripts never state (e.g. a system price, a market share, a named company, a percentage of
+   hospitals, an average payback period), set insufficient_evidence=true, leave answer and evidence empty, and do
+   NOT substitute related material you did find. Experts discussing "cost" does not answer "what is the price";
+   experts discussing "adoption" does not answer "what percentage of hospitals". Refusing is the correct answer.
 8. Be concise and specific. Prefer the experts' own terms."""
 
 
@@ -60,7 +64,8 @@ Task:
   genuine disagreements.
 - `expert_answers`: one entry per expert whose evidence is relevant (skip experts with no relevant evidence).
 - `evidence`: every evidence_id that supports the synthesis.
-- If nothing in the evidence addresses the question: insufficient_evidence=true, empty lists."""
+- If the evidence does not state the specific fact the question asks for, or only touches the same topic:
+  insufficient_evidence=true with empty `answer`, `expert_answers` and `evidence`. Do not answer a different question."""
 
 
 def guide_prompt(question: str, experts: list[ExpertRef], evidence: list[Evidence]) -> str:

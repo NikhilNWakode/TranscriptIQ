@@ -36,6 +36,10 @@ NO_EXPERT_EVIDENCE = "No sufficient evidence in this transcript."
 # question to be present in the evidence. Measured on the case data: answerable questions score 1.0,
 # unanswerable probes ("Which company sells the most systems?") score <= 0.62.
 EXTRACTIVE_MIN_COVERAGE = 0.75
+# In LLM mode the model judges answerability (prompt rule 7); this gate only catches questions whose subject is
+# essentially absent from the corpus, so no tokens are spent on them. It is deliberately far below the
+# extractive threshold: with semantic embeddings, a legitimate question can score ~0.25 on lexical coverage.
+LLM_MIN_COVERAGE = 0.2
 
 
 class GuideConfigError(Exception):
@@ -118,7 +122,8 @@ class ResearchService:
         # subject terms to be present; LLM mode lets the model decide (it can return insufficient_evidence).
         coverage = self.retriever.term_coverage(question, hits)
         lexical_embedder = isinstance(self.retriever.embedder, LocalHashEmbedding)
-        if not hits or (lexical_embedder and coverage == 0) or (self.llm.is_mock and coverage < EXTRACTIVE_MIN_COVERAGE):
+        floor = EXTRACTIVE_MIN_COVERAGE if self.llm.is_mock else LLM_MIN_COVERAGE
+        if not hits or (lexical_embedder and coverage == 0) or coverage < floor:
             return self._no_evidence(question, retrieved=len(hits), experts_considered=len(experts))
 
         by_id = self.store.get_evidence([h.evidence_id for h in hits])
