@@ -213,3 +213,35 @@ def test_gemini_never_sends_the_schema_twice(monkeypatch):
     prompt = body["contents"][0]["parts"][0]["text"]
     assert "responseJsonSchema" in body["generationConfig"]
     assert "JSON Schema" not in prompt and prompt == "the question"
+
+
+def test_rate_limit_retry_uses_the_providers_own_reset_hint(monkeypatch):
+    waits = []
+    monkeypatch.setattr(providers.time, "sleep", lambda s: waits.append(s))
+    calls = []
+
+    def handler(req):
+        calls.append(1)
+        if len(calls) == 1:
+            return httpx.Response(429, headers={"x-ratelimit-reset-tokens": "6.5s"}, json={})
+        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": json.dumps(VALID)}]}}]})
+
+    mock_httpx(monkeypatch, handler)
+    GeminiLLM(settings(llm_api_key="k")).generate("s", "u", LLMCrossExpertAnswer)
+    assert waits == [6.5]  # server hint, not the 1.5s default
+
+
+def test_retry_hint_is_capped_and_parses_units(monkeypatch):
+    parse = providers._JSONHttpLLM._server_retry_after
+    mk = lambda h: httpx.Response(429, headers=h)  # noqa: E731
+    assert parse(mk({"retry-after": "3"})) == 3.0
+    assert parse(mk({"x-ratelimit-reset-tokens": "577ms"})) == 0.577
+    assert parse(mk({"x-ratelimit-reset-requests": "1m20s"})) == 80.0
+    assert parse(mk({})) is None
+
+    waits = []
+    monkeypatch.setattr(providers.time, "sleep", lambda s: waits.append(s))
+    mock_httpx(monkeypatch, lambda req: httpx.Response(429, headers={"retry-after": "900"}, json={}))
+    with pytest.raises(LLMError):
+        GeminiLLM(settings(llm_api_key="k")).generate("s", "u", LLMCrossExpertAnswer)
+    assert all(w <= providers._JSONHttpLLM.MAX_SERVER_WAIT_S for w in waits)

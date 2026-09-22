@@ -311,7 +311,7 @@ class ResearchService:
 
         per_question: list[tuple[GuideQuestion, list[Evidence]]] = []
         for q in questions:
-            ctx = self._guide_context(q.text, experts, k=3)
+            ctx = self._guide_context(q.text, experts, k=2)  # 2 per expert keeps each per-question call inside small free-tier budgets
             per_question.append((q, [ev for tid in ctx for ev in ctx[tid]]))
 
         if self.llm.is_mock:
@@ -356,9 +356,13 @@ class ResearchService:
         themes: list[Finding] = []
         if findings:
             allowed_all = {ev.id for f in findings for ev in f.evidence}
-            block = "\n\n".join(
+            # The themes pass reasons over the findings, not the raw transcript: it needs each finding's meaning
+            # and the evidence IDs it may reuse, not the quotes again (they were supplied in the per-question
+            # pass). Resending them makes this the largest request of the page and, on small per-minute budgets,
+            # it is rejected outright (HTTP 413).
+            block = "\n".join(
                 f"[{f.id}] ({f.classification}) {f.title}: {f.summary}\n"
-                + "\n".join(f"  - evidence_id: {ev.id} | {ev.expert_name} ({ev.market}): {ev.text}" for ev in f.evidence)
+                f"  evidence: " + ", ".join(f"{ev.id} ({ev.expert_name}, {ev.market})" for ev in f.evidence)
                 for f in findings
             )
             try:

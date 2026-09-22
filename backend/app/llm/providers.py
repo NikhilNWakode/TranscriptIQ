@@ -126,9 +126,24 @@ class _JSONHttpLLM(LLMService):
     @abstractmethod
     def _call(self, system: str, user: str, schema: type[BaseModel]) -> str: ...
 
-    # Free tiers return 503 ("high demand") and 429 sporadically; a short backoff usually clears both.
+    # Free tiers return 503 ("high demand") and 429 (per-minute token budget) sporadically; a backoff clears both.
     TRANSIENT_STATUSES = frozenset({429, 500, 502, 503, 504})
     TRANSIENT_BACKOFF_S = (1.5, 4.0, 9.0)
+    MAX_SERVER_WAIT_S = 65.0  # a per-minute budget resets within a minute; never stall a request longer than this
+
+    @staticmethod
+    def _server_retry_after(response: httpx.Response) -> float | None:
+        """Seconds the provider asked us to wait (Retry-After, or the rate-limit reset hint)."""
+        for header in ("retry-after", "x-ratelimit-reset-tokens", "x-ratelimit-reset-requests"):
+            raw = response.headers.get(header)
+            if not raw:
+                continue
+            # values look like "7", "7.66", "577ms" or "1m20s"
+            if match := re.fullmatch(r"\s*(?:(\d+(?:\.\d+)?)m)?\s*(\d+(?:\.\d+)?)(ms|s)?\s*", raw):
+                minutes, value, unit = match.groups()
+                seconds = float(value) / 1000 if unit == "ms" else float(value)
+                return (float(minutes) * 60 if minutes else 0.0) + seconds
+        return None
 
     def _call_with_retries(self, system: str, prompt: str, schema: type[BaseModel]) -> str:
         last: httpx.HTTPStatusError | None = None
@@ -139,8 +154,10 @@ class _JSONHttpLLM(LLMService):
                 if exc.response.status_code not in self.TRANSIENT_STATUSES or delay is None:
                     raise
                 last = exc
-                log.warning("%s returned %s; retrying in %.1fs", self.provider, exc.response.status_code, delay)
-                time.sleep(delay)
+                # the provider knows when its budget resets; prefer its hint over our fixed backoff
+                wait = min(max(self._server_retry_after(exc.response) or delay, delay), self.MAX_SERVER_WAIT_S)
+                log.warning("%s returned %s; retrying in %.1fs", self.provider, exc.response.status_code, wait)
+                time.sleep(wait)
         raise last  # unreachable: the final iteration re-raises
 
     def generate(self, system: str, user: str, schema: type[T]) -> T:
