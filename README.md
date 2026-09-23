@@ -34,7 +34,7 @@ questions — with every claim backed by a timestamped, verbatim quote.
 | **Source navigation** | Every quote is clickable → transcript viewer scrolls to the exact timestamp and highlights the cited evidence. |
 | **Transcript viewer** | Expert selector, dynamic market/role filters, speaker labels, timestamps, in-transcript search, metadata editing (stored as overrides, survives re-indexing). |
 | **Qualifier preservation** | A deterministic validator flags answers that drop qualifiers (“in some of the stronger centres”, “if funding is already available”, “rather than … across the whole market”) or add universal wording (“alone”, “all purchases”); in LLM mode it triggers one automatic repair pass. |
-| **Provider-agnostic** | Gemini (free tier), Claude, any OpenAI-compatible endpoint (Groq, OpenRouter, Ollama…), or an offline extractive mode — switched in `.env`. |
+| **Provider-agnostic** | Any OpenAI-compatible endpoint (Groq, OpenRouter, Ollama…), Gemini, Claude, or an offline extractive mode — switched in `.env`. |
 
 ---
 
@@ -69,8 +69,8 @@ questions — with every claim backed by a timestamped, verbatim quote.
 | API | **FastAPI** + Pydantic v2 | Typed request/response validation; Pydantic models double as LLM output schemas. |
 | Storage | **SQLite** (stdlib) | Zero-ops, single file, transactional. Evidence, embeddings, embedding cache and LLM cache in one DB. |
 | Vector search | **numpy** matrix in memory + **BM25** | For 3–100 transcripts (≤ a few thousand segments) brute-force cosine is sub-millisecond; no extra service to run in an interview. Swappable for pgvector (see Scaling). |
-| LLM | `LLMService` abstraction: **Gemini**, **Claude** (`anthropic` SDK, `messages.parse` structured outputs), **OpenAI-compatible** (Groq / OpenRouter / Ollama), **mock** | Provider and model are swapped through `.env`; adding one means implementing a single `generate(system, user, schema)` method. |
-| Embeddings | `EmbeddingService`: **local hashed vectors** (offline), **gemini-embedding-001**, **OpenAI-compatible** | Local mode needs no key; Gemini adds real semantic matching for free. |
+| LLM | `LLMService` abstraction: **OpenAI-compatible** (Groq / OpenRouter / Ollama), **Gemini**, **Claude** (`anthropic` SDK, `messages.parse` structured outputs), **mock** | Provider and model are swapped through `.env`; adding one means implementing a single `generate(system, user, schema)` method. Transient failures (429/5xx) retry with the provider's own reset hint. |
+| Embeddings | `EmbeddingService`: **local hashed vectors** (offline), **gemini-embedding-001**, **OpenAI-compatible** | Local mode needs no key or quota and pairs with any LLM provider; Gemini adds semantic matching for free. |
 | Frontend | **Next.js 15**, **TypeScript**, **Tailwind CSS v4**, **shadcn/ui** components (Radix primitives, CVA) | Professional dashboard; `/api` is proxied by Next so API keys never reach the browser. |
 
 ---
@@ -97,20 +97,35 @@ npm install
 Put the case transcripts in `/transcripts` (e.g. `expert_1.txt`, `expert_2.txt`, `expert_3.txt`). Any number of
 files is supported.
 
-### Free LLM in 2 minutes (Google Gemini)
-1. Create a free API key at <https://aistudio.google.com/apikey>.
+### Free LLM in 2 minutes (Groq)
+
+1. Create a free API key at <https://console.groq.com/keys>.
 2. In `.env`:
    ```ini
-   LLM_PROVIDER=gemini
-   LLM_MODEL=gemini-2.5-flash
+   LLM_PROVIDER=openai_compatible
+   LLM_MODEL=openai/gpt-oss-120b
+   LLM_BASE_URL=https://api.groq.com/openai/v1
    LLM_API_KEY=<your key>
-   EMBEDDING_PROVIDER=gemini      # optional but recommended: semantic retrieval, same free key
+   EMBEDDING_PROVIDER=local        # Groq has no embeddings API; local vectors need no key and no quota
    ```
-3. Restart the backend. The header badge switches from “Extractive demo mode” to `gemini · gemini-2.5-flash`.
+3. Restart the backend. The header badge switches from “Extractive demo mode” to
+   `openai_compatible · openai/gpt-oss-120b`.
+4. Check it: `cd backend && .venv/Scripts/python -m app.eval.golden` → **12/12** (see [Evaluation](#evaluation)).
 
-Other free options: **Groq** (`LLM_PROVIDER=openai_compatible`, `LLM_BASE_URL=https://api.groq.com/openai/v1`,
-`LLM_MODEL=llama-3.3-70b-versatile`), **OpenRouter** `:free` models, or **Ollama** locally
-(`LLM_BASE_URL=http://localhost:11434/v1`). Without any key the app runs in deterministic **extractive mode**.
+Model note: `openai/gpt-oss-120b` answers in ~2.5s and, on this evaluation, refused all seven unanswerable
+questions. Confirm the name against your key (`curl -H "Authorization: Bearer $KEY" https://api.groq.com/openai/v1/models`);
+available models differ per account.
+
+**Free-tier rate limits matter.** A free Groq key allows ~8k tokens/minute, while a cold Cross-Expert Insights load
+issues seven calls. The client honours the provider's `Retry-After`/reset hints, so the page completes — it just
+takes ~2 minutes the first time. Results are cached in SQLite, so every later load is instant: **open Insights once
+before a demo.** Interview Guide and Ask AI are one call each and unaffected.
+
+Alternatives, same `.env` shape: **OpenRouter** `:free` models or a local **Ollama**
+(`LLM_BASE_URL=http://localhost:11434/v1`) via `openai_compatible`; **Gemini** (`LLM_PROVIDER=gemini`,
+`LLM_MODEL=gemini-3.6-flash`, free key at <https://aistudio.google.com/apikey>) additionally provides embeddings
+(`EMBEDDING_PROVIDER=gemini`). With no key at all the app runs in deterministic **extractive mode**: retrieval,
+quotes, timestamps and citations all work offline, without synthesis.
 
 ---
 
@@ -120,12 +135,12 @@ All configuration lives in `.env` (git-ignored; `.env.example` documents every k
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `LLM_PROVIDER` | `mock` | `gemini` · `anthropic` · `openai_compatible` · `mock` |
-| `LLM_MODEL` | provider default | e.g. `gemini-2.5-flash`, `claude-opus-5`, `llama-3.3-70b-versatile` |
+| `LLM_PROVIDER` | `mock` | `openai_compatible` (Groq / OpenRouter / Ollama) · `gemini` · `anthropic` · `mock` |
+| `LLM_MODEL` | provider default | e.g. `openai/gpt-oss-120b`, `gemini-3.6-flash`, `claude-opus-5` |
 | `LLM_API_KEY` | – | Provider key. Missing/invalid → graceful fallback to extractive mode with a visible notice. |
-| `LLM_BASE_URL` | – | For OpenAI-compatible endpoints or proxies |
+| `LLM_BASE_URL` | – | Required for `openai_compatible` (Groq: `https://api.groq.com/openai/v1`) |
 | `LLM_EFFORT` | – | Claude only (`low`…`max`) |
-| `EMBEDDING_PROVIDER` | `local` | `local` · `gemini` · `openai_compatible` |
+| `EMBEDDING_PROVIDER` | `local` | `local` (offline, no key) · `gemini` · `openai_compatible`. Groq has no embeddings API — keep `local` with it. |
 | `EMBEDDING_MODEL` / `EMBEDDING_API_KEY` / `EMBEDDING_BASE_URL` | – | Embedding key falls back to `LLM_API_KEY` |
 | `TRANSCRIPTS_DIR` | `transcripts` | Folder that is scanned |
 | `INTERVIEW_GUIDE_PATH` | `config/interview_guide.json` | Guide questions (+ suggested Ask AI questions) |
@@ -331,7 +346,7 @@ in the dashboard; everything else is in the blueprint. Manual setup is equivalen
 | Build | `pip install -r requirements.txt` |
 | Start | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
 | Health check | `/api/health` |
-| Env | `LLM_PROVIDER=gemini`, `LLM_MODEL=gemini-2.5-flash`, `LLM_API_KEY=…`, `EMBEDDING_PROVIDER=gemini`, `DATABASE_PATH=/tmp/transcriptiq.db`, `TRANSCRIPTS_DIR=/opt/render/project/src/transcripts` |
+| Env | `LLM_PROVIDER=openai_compatible`, `LLM_MODEL=openai/gpt-oss-120b`, `LLM_BASE_URL=https://api.groq.com/openai/v1`, `LLM_API_KEY=…`, `EMBEDDING_PROVIDER=local`, `DATABASE_PATH=/tmp/transcriptiq.db`, `TRANSCRIPTS_DIR=/opt/render/project/src/transcripts` |
 
 **Frontend — Vercel**: import the same repo, root directory `frontend`, and set one variable:
 `BACKEND_URL=https://<your-render-service>.onrender.com`.

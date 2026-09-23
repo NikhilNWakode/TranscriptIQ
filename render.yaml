@@ -23,11 +23,14 @@ services:
       - key: DATABASE_PATH
         value: /tmp/transcriptiq.db
       - key: LLM_PROVIDER
-        value: gemini
+        value: openai_compatible
       - key: LLM_MODEL
-        value: gemini-2.5-flash
+        value: openai/gpt-oss-120b
+      - key: LLM_BASE_URL
+        value: https://api.groq.com/openai/v1
+      # Groq has no embeddings API; local vectors need no key and no quota.
       - key: EMBEDDING_PROVIDER
-        value: gemini
+        value: local
       # Set in the Render dashboard, never in the repo.
       - key: LLM_API_KEY
         sync: false
